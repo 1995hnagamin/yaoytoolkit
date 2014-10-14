@@ -1,4 +1,4 @@
-(define (status-code http-response) (car response))
+(define (status-code http-response) (car http-response))
 
 (define (success-status? response)
   (equal? (status-code response) "200"))
