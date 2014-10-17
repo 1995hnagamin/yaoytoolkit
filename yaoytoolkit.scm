@@ -15,6 +15,9 @@
                            ""
                            :secure #t)))
 
+(define (datestring->date str)
+  (string->date str "~Y-~m-~d ~H:~M:~S ~z"))
+
 (define (openyo-history endpoint api-ver api-token :key (count #f))
   (let1 response
         (get-openyo endpoint
@@ -24,7 +27,7 @@
                             (if count (list count) '())))
     (if (success-status? response)
       (map (lambda (elem)
-             (cons (cdar elem) (cdadr elem)))
+             (cons (cdar elem) (datestring->date (cdadr elem))))
         (vector->list
           (cdr (assoc "result" (http-response-jsonbody response)))))
       '())))
@@ -54,7 +57,8 @@
               `((api_ver ,api-ver)
                 (api_token ,api-token))))
 
-(define (openyo-add-imkayac endpoint api-ver username password kayac-id 
+(define (openyo-add-imkayac endpoint api-ver
+                            username password kayac-id 
                             :key (kayac-pass #f) 
                                  (kayac-sec #f))
   (post-openyo endpoint

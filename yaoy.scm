@@ -7,7 +7,21 @@
 
 (load "./yaoytoolkit.scm")
 
-(define *yaoy-config* (expand-path "~/.yaoy"))
+(define *subcommands* '())
+
+(define-macro (aif test consequent alternative)
+  `(let ((it ,test))
+     (if it ,consequent ,alternative)))
+
+(define (get-subcommand command)
+  (aif (assoc command *subcommands*)
+    (cdr it)
+    #f))
+
+(define (set-subcommand! command procedure)
+  (set! *subcommands* (assoc-set! *subcommands* command procedure)))
+
+(define *yaoy-config* (expand-path "~/.yaoy/config"))
 
 (define (get-yaoy-settings)
   (call-with-input-file *yaoy-config*
@@ -28,6 +42,7 @@
       (lambda (oport)
         (construct-json (assoc-set! settings key value) oport)))))
 
+
 (define (send-yo username)
   (apply openyo-sendyo
          (append
@@ -39,6 +54,9 @@
   (apply openyo-yoall
          (map get-user-info
               '("endpoint" "api_ver" "api_token"))))
+
+(define (date->datestring date)
+  (date->string date "~Y/~m/~d ~H:~M:~S"))
 
 (define (show-history . n)
   (let1 result (if (null? n)
@@ -52,7 +70,7 @@
                    :count (car n)))
      (for-each
        (lambda (e)
-         (print (format "~A\t~A" (cdr e) (car e))))
+         (print (format "~A\t~A" (date->datestring (cdr e)) (car e))))
        result)))
 
 (define (create-user username password)
@@ -107,9 +125,11 @@
   (if (null? args)
     (yo-help)
     (send-yo (car args))))
+(set-subcommand! "yo" yo)
 
 (define (yoall args)
   (send-yo-all))
+(set-subcommand! "yoall" yoall)
 
 (define (history args)
   (cond
@@ -117,48 +137,52 @@
     ((string->number (car args)) (show-history (car args)))
     (else (print (format "error: ~A is not a number" (car args)))
           (history-help))))
+(set-subcommand! "history" history)
+
+(define (get-prompt prompt)
+  (display prompt)
+  (flush)
+  (let1 input (read-line)
+    (if (zero? (string-length input))
+      (get-prompt prompt)
+      input)))
+
+(define get-pass get-prompt)
+
+(define (length>? x k)
+  (cond
+    ((null? x) #f)
+    ((zero? k) x)
+    (else (length>? (cdr x) (- k 1)))))
+
+(define-macro (let-with-list lst binds . body)
+  `(let ,(map (lambda (bind n)
+                `(,(car bind) (aif (length>? ,lst ,n) 
+                                   (car it)
+                                   ,(cadr bind))))
+              binds (liota +inf.0))
+     ,@body))
 
 (define (init args)
-  (let ((endpoint (if (null? args) 
-                    (get-prompt "input endpoint>")
-                    (car args)))
-        (api-ver  (if (null? (cdr args))
-                     (get-prompt "input api_ver>")
-                     (cadr args))))
+  (let-with-list args ((endpoint (get-prompt "input endpoint> "))
+                       (api-ver (get-prompt "input api_ver> ")))
     (if (string->number api-ver)
       (initialize-yaoy-config endpoint api-ver)
       (begin
         (print (format "error: ~A is not a number" api-ver))
         (init-help)))))
+(set-subcommand! "init" init)
 
 (define (register args)
-  (let ((username (if (null? args)
-                    (get-prompt "input username>")
-                    (car args)))
-        (password (if (null? (cdr args))
-                    (get-pass "input password>")
-                    (cadr args))))
+  (let-with-list args ((username (get-prompt "input username> "))
+                       (password (get-pass "input password> ")))
     (create-user username password)))
-
-(define-macro (caseoc key . clauses)
-  (cons 'cond
-    (map (lambda (clause)
-           (if (equal? 'else (car clause))
-             clause
-             (cons `(or ,@(map (lambda (x) `(equal? ,x ,key))
-                                (car clause)))
-                   (cdr clause))))
-         clauses)))
+(set-subcommand! "register" register)
 
 (define (main args)
   (let1 args (cdr args)
-    (if (null? args) 
+    (if (null? args)
       (help)
-      (caseoc (car args)
-        (("yo") (yo (cdr args)))
-        (("yoall") (yoall (cdr args)))
-        (("history") (history (cdr args)))
-        (("init") (init (cdr args)))
-        (("register") (register (cdr args)))
-        (("help") (help))
-        (else (print (class-of (car args))))))))
+      (aif (get-subcommand (car args))
+        (it (cdr args))
+        (print (class-of (car args)))))))
