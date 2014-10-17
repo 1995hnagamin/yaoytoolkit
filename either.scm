@@ -1,0 +1,25 @@
+(define (left a) (cons #f a))
+(define (right b) (cons #t b))
+
+(define (is-left? e) (not (car e)))
+(define (is-right? e) (car e))
+
+(define (left-value e) (cdr e))
+(define (right-value e) (cdr e))
+
+(define (either left-proc right-proc e)
+  (if (is-left? e)
+    (left-proc (left-value e))
+    (right-proc (right-value e))))
+
+(define (partition-eithers es)
+  (letrec ((change-car (lambda (fun pair)
+                         (list (fun (car pair)) (cadr pair))))
+           (change-cadr (lambda (fun pair)
+                         (list (car pair) (fun (cadr pair))))))
+    (fold (lambda (e seed)
+            (if (is-left? e)
+              (change-car (cut cons (left-value e) <>) seed)
+              (change-cadr (cut cons (right-value e) <>) seed)))
+          (list '() '())
+          es)))

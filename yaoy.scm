@@ -19,7 +19,7 @@
     #f))
 
 (define (set-subcommand! command procedure)
-  (assoc-set! *subcommands* command procedure))
+  (set! *subcommands* (assoc-set! *subcommands* command procedure)))
 
 
 (define *yaoy-config* (expand-path "~/.yaoy"))
@@ -44,17 +44,23 @@
         (construct-json (assoc-set! settings key value) oport)))))
 
 
+(define (evaluate-sendyo-response response) #f)
+
+
 (define (send-yo username)
-  (apply openyo-sendyo
-         (append
-           (map get-user-info
-                '("endpoint" "api_ver" "api_token"))
-           `(,username))))
+  (evaluate-sendyo-response
+    (apply openyo-sendyo
+           (append (map get-user-info 
+                     '("endpoint" "api_ver" "api_token"))
+                   `(,username)))))
 
 (define (send-yo-all)
   (apply openyo-yoall
          (map get-user-info
               '("endpoint" "api_ver" "api_token"))))
+
+(define (string->datestring date)
+  (date->string date "~Y/~m/~d ~H:~M:~S"))
 
 (define (show-history . n)
   (let1 result (if (null? n)
@@ -68,7 +74,7 @@
                    :count (car n)))
      (for-each
        (lambda (e)
-         (print (format "~A\t~A" (cdr e) (car e))))
+         (print (format "~A\t~A" (string->datestring (cdr e)) (car e))))
        result)))
 
 (define (create-user username password)
@@ -171,7 +177,7 @@
                    (cdr clause))))
          clauses)))
 
-(define (main args)
+(define (ex-main args)
   (let1 args (cdr args)
     (if (null? args) 
       (help)
@@ -184,7 +190,7 @@
         (("help") (help))
         (else (print (class-of (car args))))))))
 
-(define (alt-main args)
+(define (main args)
   (let1 args (cdr args)
     (if (null? args)
       (help)
