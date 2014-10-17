@@ -142,7 +142,10 @@
 (define (get-prompt prompt)
   (display prompt)
   (flush)
-  (read-line))
+  (let1 input (read-line)
+    (if (zero? (string-length input))
+      (get-prompt prompt)
+      input)))
 
 (define get-pass get-prompt)
 
@@ -171,12 +174,8 @@
 (set-subcommand! "init" init)
 
 (define (register args)
-  (let ((username (if (null? args)
-                    (get-prompt "input username> ")
-                    (car args)))
-        (password (if (null? (cdr args))
-                    (get-pass "input password> ")
-                    (cadr args))))
+  (let-with-list args ((username (get-prompt "input username> "))
+                       (password (get-pass "input password> ")))
     (create-user username password)))
 (set-subcommand! "register" register)
 
