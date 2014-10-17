@@ -57,7 +57,8 @@
               `((api_ver ,api-ver)
                 (api_token ,api-token))))
 
-(define (openyo-add-imkayac endpoint api-ver username password kayac-id 
+(define (openyo-add-imkayac endpoint api-ver
+                            username password kayac-id 
                             :key (kayac-pass #f) 
                                  (kayac-sec #f))
   (post-openyo endpoint
