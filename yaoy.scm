@@ -19,8 +19,7 @@
     #f))
 
 (define (set-subcommand! command procedure)
-  (assoc-set! *subcommands* command procedure))
-
+  (set! *subcommands* (assoc-set! *subcommands* command procedure)))
 
 (define *yaoy-config* (expand-path "~/.yaoy"))
 
@@ -56,6 +55,9 @@
          (map get-user-info
               '("endpoint" "api_ver" "api_token"))))
 
+(define (date->datestring date)
+  (date->string date "~Y/~m/~d ~H:~M:~S"))
+
 (define (show-history . n)
   (let1 result (if (null? n)
                  (apply openyo-history
@@ -68,7 +70,7 @@
                    :count (car n)))
      (for-each
        (lambda (e)
-         (print (format "~A\t~A" (cdr e) (car e))))
+         (print (format "~A\t~A" (date->datestring (cdr e)) (car e))))
        result)))
 
 (define (create-user username password)
