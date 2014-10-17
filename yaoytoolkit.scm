@@ -3,9 +3,6 @@
 (define (success-status? response)
   (equal? (status-code response) "200"))
 
-(define (success-status-code? status-code)
-  (equal? status-code "200"))
-
 (define (http-response-jsonbody response)
   (parse-json-string (list-ref response 2)))
 
@@ -18,14 +15,6 @@
                            ""
                            :secure #t)))
 
-(define (receive-http-response request endpoint asset query-list)
-  (receive (status head body) (request endpoint asset query-list)
-    (cond
-      ((not (success-status-code? status)) #f))))
-
-(define (datestring->date str)
-  (string->date str "~Y-~m-~d ~H:~M:~S ~z"))
-
 (define (openyo-history endpoint api-ver api-token :key (count #f))
   (let1 response
         (get-openyo endpoint
@@ -35,7 +24,7 @@
                             (if count (list count) '())))
     (if (success-status? response)
       (map (lambda (elem)
-             (cons (cdar elem) (datestring->date (cdadr elem))))
+             (cons (cdar elem) (cdadr elem)))
         (vector->list
           (cdr (assoc "result" (http-response-jsonbody response)))))
       '())))
