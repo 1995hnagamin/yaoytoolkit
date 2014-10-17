@@ -21,7 +21,7 @@
 (define (set-subcommand! command procedure)
   (set! *subcommands* (assoc-set! *subcommands* command procedure)))
 
-(define *yaoy-config* (expand-path "~/.yaoy"))
+(define *yaoy-config* (expand-path "~/.yaoy/config"))
 
 (define (get-yaoy-settings)
   (call-with-input-file *yaoy-config*
@@ -139,13 +139,30 @@
           (history-help))))
 (set-subcommand! "history" history)
 
+(define (get-prompt prompt)
+  (display prompt)
+  (flush)
+  (read-line))
+
+(define get-pass get-prompt)
+
+(define (length>? x k)
+  (cond
+    ((null? x) #f)
+    ((zero? k) x)
+    (else (length>? (cdr x) (- k 1)))))
+
+(define-macro (let-with-list lst binds . body)
+  `(let ,(map (lambda (bind n)
+                `(,(car bind) (aif (length>? ,lst ,n) 
+                                   (car it)
+                                   ,(cadr bind))))
+              binds (liota +inf.0))
+     ,@body))
+
 (define (init args)
-  (let ((endpoint (if (null? args) 
-                    (get-prompt "input endpoint>")
-                    (car args)))
-        (api-ver  (if (null? (cdr args))
-                     (get-prompt "input api_ver>")
-                     (cadr args))))
+  (let-with-list args ((endpoint (get-prompt "input endpoint> "))
+                       (api-ver (get-prompt "input api_ver> ")))
     (if (string->number api-ver)
       (initialize-yaoy-config endpoint api-ver)
       (begin
@@ -155,10 +172,10 @@
 
 (define (register args)
   (let ((username (if (null? args)
-                    (get-prompt "input username>")
+                    (get-prompt "input username> ")
                     (car args)))
         (password (if (null? (cdr args))
-                    (get-pass "input password>")
+                    (get-pass "input password> ")
                     (cadr args))))
     (create-user username password)))
 (set-subcommand! "register" register)
