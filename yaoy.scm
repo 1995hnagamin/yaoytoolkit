@@ -163,30 +163,7 @@
     (create-user username password)))
 (set-subcommand! "register" register)
 
-(define-macro (caseoc key . clauses)
-  (cons 'cond
-    (map (lambda (clause)
-           (if (equal? 'else (car clause))
-             clause
-             (cons `(or ,@(map (lambda (x) `(equal? ,x ,key))
-                                (car clause)))
-                   (cdr clause))))
-         clauses)))
-
 (define (main args)
-  (let1 args (cdr args)
-    (if (null? args) 
-      (help)
-      (caseoc (car args)
-        (("yo") (yo (cdr args)))
-        (("yoall") (yoall (cdr args)))
-        (("history") (history (cdr args)))
-        (("init") (init (cdr args)))
-        (("register") (register (cdr args)))
-        (("help") (help))
-        (else (print (class-of (car args))))))))
-
-(define (alt-main args)
   (let1 args (cdr args)
     (if (null? args)
       (help)
