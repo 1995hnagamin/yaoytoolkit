@@ -7,6 +7,21 @@
 
 (load "./yaoytoolkit.scm")
 
+(define *subcommands* '())
+
+(define-macro (aif test consequent alternative)
+  `(let ((it ,test))
+     (if it ,consequent ,alternative)))
+
+(define (get-subcommand command)
+  (aif (assoc command *subcommands*)
+    (cdr it)
+    #f))
+
+(define (set-subcommand! command procedure)
+  (assoc-set! *subcommands* command procedure))
+
+
 (define *yaoy-config* (expand-path "~/.yaoy"))
 
 (define (get-yaoy-settings)
@@ -27,6 +42,7 @@
     (call-with-output-file *yaoy-config*
       (lambda (oport)
         (construct-json (assoc-set! settings key value) oport)))))
+
 
 (define (send-yo username)
   (apply openyo-sendyo
@@ -107,9 +123,11 @@
   (if (null? args)
     (yo-help)
     (send-yo (car args))))
+(set-subcommand! "yo" yo)
 
 (define (yoall args)
   (send-yo-all))
+(set-subcommand! "yoall" yoall)
 
 (define (history args)
   (cond
@@ -117,6 +135,7 @@
     ((string->number (car args)) (show-history (car args)))
     (else (print (format "error: ~A is not a number" (car args)))
           (history-help))))
+(set-subcommand! "history" history)
 
 (define (init args)
   (let ((endpoint (if (null? args) 
@@ -130,6 +149,7 @@
       (begin
         (print (format "error: ~A is not a number" api-ver))
         (init-help)))))
+(set-subcommand! "init" init)
 
 (define (register args)
   (let ((username (if (null? args)
@@ -139,6 +159,7 @@
                     (get-pass "input password>")
                     (cadr args))))
     (create-user username password)))
+(set-subcommand! "register" register)
 
 (define-macro (caseoc key . clauses)
   (cons 'cond
@@ -162,3 +183,11 @@
         (("register") (register (cdr args)))
         (("help") (help))
         (else (print (class-of (car args))))))))
+
+(define (alt-main args)
+  (let1 args (cdr args)
+    (if (null? args)
+      (help)
+      (aif (get-subcommand (car args))
+        (it (cdr args))
+        (print (class-of (car args)))))))
