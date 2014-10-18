@@ -92,14 +92,13 @@
                username
                (cadr result))))))
 
-(define (show-friends)
-  (let1 result (openyo-list-friends (get-user-info "endpoint")
-                                    (get-user-info "api_ver")
-                                    (get-user-info "api_token"))
-    (for-each print result)))
+(define (get-friends)
+  (openyo-list-friends (get-user-info "endpoint")
+                       (get-user-info "api_ver")
+                       (get-user-info "api_token")))
 (set-subcommand! "friends" 
                  (lambda (args)
-                   (show-friends)))
+                   (for-each print (get-friends))))
 
 (define (initialize-yaoy-config endpoint api-ver)
   (set-user-info! "endpoint" endpoint)
