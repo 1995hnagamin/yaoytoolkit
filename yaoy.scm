@@ -44,11 +44,14 @@
 
 
 (define (send-yo username)
-  (apply openyo-sendyo
-         (append
-           (map get-user-info
-                '("endpoint" "api_ver" "api_token"))
-           `(,username))))
+  (let1 response
+    (http-response-jsonbody
+      (apply openyo-sendyo
+            (append
+              (map get-user-info
+                   '("endpoint" "api_ver" "api_token"))
+              `(,username))))
+    (print (cdr (assoc "result" response)))))
 
 (define (send-yo-all)
   (apply openyo-yoall
