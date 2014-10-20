@@ -9,21 +9,25 @@
     [(_ ms command args ...)
      (tk-call 'after ms (format command args ...))]))
 
-(define (pack-yo-buttons)
-  (let1 friends (get-friends)
-    (dolist (friend friends)
-      (let1 path (yo-button-symbol friend)
-        (tk-button
-          path 
-          :text friend
-          :command (lambda () 
-                     (let1 result (send-yo friend)
-                       (tk-call path 'configure :text result)
-                       (tk-after 800 "~A configure -text ~A"
-                                 path friend))))
-        (tk-pack path :fill 'x)))))
+(define (pack-buttons button-paths)
+  (dolist (path button-paths)
+    (tk-pack path :fill 'x)))
+
+(define (make-yo-buttons friends)
+  (map (lambda (friend)
+         (let1 path (yo-button-symbol friend)
+           (tk-button
+             path
+             :text friend
+             :command (lambda ()
+                        (let1 result (send-yo friend)
+                          (tk-call path 'configure :text result)
+                          (tk-after 2000 "~A configure -text ~A"
+                                    path friend))))
+           path))
+       friends))
 
 (define (main args)
   (tk-init '())
-  (pack-yo-buttons)
+  (pack-buttons (make-yo-buttons (get-friends)))
   (tk-mainloop))
