@@ -51,7 +51,7 @@
               (map get-user-info
                    '("endpoint" "api_ver" "api_token"))
               `(,username))))
-    (print (cdr (assoc "result" response)))))
+    (cdr (assoc "result" response))))
 
 (define (send-yo-all)
   (apply openyo-yoall
@@ -135,7 +135,7 @@
 (define (yo args)
   (if (null? args)
     (yo-help)
-    (send-yo (car args))))
+    (print (send-yo (car args)))))
 (set-subcommand! "yo" yo)
 
 (define (yoall args)
