@@ -77,7 +77,7 @@
                    :count (car n)))
      (for-each
        (lambda (e)
-         (print (format #t "~A\t~A~%"
+         (print (format "~A\t~A"
                         (date->datestring (cdr e)) (car e))))
        result)))
 
@@ -90,7 +90,7 @@
     (cond
       ((not fail?)
        (set-user-info! "api_token" result)
-       (print (format #t "User created: ~A~%" username)) #t)
+       (print (format "User created: ~A" username)) #t)
       ((string=? fail? "http-post")
        (print "Could not post request to ~A.~%" 
               (get-user-info "endpoint"))
@@ -151,7 +151,7 @@
   (cond
     ((null? args) (show-history))
     ((string->number (car args)) (show-history (car args)))
-    (else (print (format "error: ~A is not a number~%" (car args)))
+    (else (print (format "error: ~A is not a number" (car args)))
           (history-help))))
 (set-subcommand! "history" history)
 
