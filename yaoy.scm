@@ -108,6 +108,14 @@
                  (lambda (args)
                    (for-each print (get-friends))))
 
+(define (get-friends)
+  (openyo-list-friends (get-user-info "endpoint")
+                       (get-user-info "api_ver")
+                       (get-user-info "api_token")))
+(set-subcommand! "friends" 
+                 (lambda (args)
+                   (for-each print (get-friends))))
+
 (define (initialize-yaoy-config endpoint api-ver)
   (set-user-info! "endpoint" endpoint)
   (set-user-info! "api_ver" api-ver))
