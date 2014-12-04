@@ -57,13 +57,6 @@
               `((api_ver ,api-ver)
                 (api_token ,api-token))))
 
-(define (openyo-list-friends endpoint api-ver api-token)
-  (let1 response (openyo-get-list-friends endpoint api-ver api-token)
-    (if (success-status? response)
-      (vector->list
-        (cdr (assoc "result" (http-response-jsonbody response))))
-      #f)))
-
 (define (openyo-add-imkayac endpoint api-ver
                             username password kayac-id 
                             :key (kayac-pass #f) 
