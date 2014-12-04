@@ -19,10 +19,10 @@
     #f))
 
 (define (set-subcommand! command procedure)
-  (assoc-set! *subcommands* command procedure))
+  (set! *subcommands* (assoc-set! *subcommands* command procedure)))
 
-
-(define *yaoy-config* (expand-path "~/.yaoy"))
+(define *yaoy-directory* (expand-path "~/.yaoy/"))
+(define *yaoy-config* (string-append *yaoy-directory* "config"))
 
 (define (get-yaoy-settings)
   (call-with-input-file *yaoy-config*
@@ -38,23 +38,32 @@
       (cdr result) #f)))
 
 (define (set-user-info! key value)
+  (create-directory* *yaoy-directory*)
   (let1 settings (get-yaoy-settings)
     (call-with-output-file *yaoy-config*
       (lambda (oport)
-        (construct-json (assoc-set! settings key value) oport)))))
+        (construct-json
+          (assoc-set! (if settings settings '()) key value) oport))
+      :if-does-not-exist :create)))
 
 
 (define (send-yo username)
-  (apply openyo-sendyo
-         (append
-           (map get-user-info
-                '("endpoint" "api_ver" "api_token"))
-           `(,username))))
+  (let1 response
+    (http-response-jsonbody
+      (apply openyo-sendyo
+            (append
+              (map get-user-info
+                   '("endpoint" "api_ver" "api_token"))
+              `(,username))))
+    (cdr (assoc "result" response))))
 
 (define (send-yo-all)
   (apply openyo-yoall
          (map get-user-info
               '("endpoint" "api_ver" "api_token"))))
+
+(define (date->datestring date)
+  (date->string date "~Y/~m/~d ~H:~M:~S"))
 
 (define (show-history . n)
   (let1 result (if (null? n)
@@ -68,27 +77,36 @@
                    :count (car n)))
      (for-each
        (lambda (e)
-         (print (format "~A\t~A" (cdr e) (car e))))
+         (print (format "~A\t~A"
+                        (date->datestring (cdr e)) (car e))))
        result)))
 
 (define (create-user username password)
-  (let1 result (openyo-create-user (get-user-info "endpoint")
-                                   (get-user-info "api_ver")
-                                   username
-                                   password)
+  (receive (result fail?)
+           (openyo-create-user (get-user-info "endpoint")
+                               (get-user-info "api_ver")
+                               username
+                               password)
     (cond
-      ((string? result) 
+      ((not fail?)
        (set-user-info! "api_token" result)
-       (print (format "User created: ~A" username)))
-      ((null? (cdr result))
-       (print "Couldn't post request to ~A." 
+       (print (format "User created: ~A" username)) #t)
+      ((string=? fail? "http-post")
+       (print "Could not post request to ~A.~%" 
               (get-user-info "endpoint"))
-       (print "error log:")
-       (print (car result)))
+       (format #t "error log:~A~%" (car result)) #f)
       (else
-        (print "Couldn't create user ~A: ~A"
-               username
-               (cadr result))))))
+        (format #t "Could not create user \"~A\": ~A~%"
+                username
+                (cadr result)) #f))))
+
+(define (get-friends)
+  (openyo-list-friends (get-user-info "endpoint")
+                       (get-user-info "api_ver")
+                       (get-user-info "api_token")))
+(set-subcommand! "friends" 
+                 (lambda (args)
+                   (for-each print (get-friends))))
 
 (define (initialize-yaoy-config endpoint api-ver)
   (set-user-info! "endpoint" endpoint)
@@ -116,13 +134,13 @@
 
 (define (init-help)
   (print-all "usage: yaoy init [endpoint] [api_ver]"
-             (format "  Initialize yaoy confiruration file (~A)" *yaoy-config*)))
+             (format "  Initialize yaoy confiruration file (~A)~%" *yaoy-config*)))
 
 
 (define (yo args)
   (if (null? args)
     (yo-help)
-    (send-yo (car args))))
+    (print (send-yo (car args)))))
 (set-subcommand! "yo" yo)
 
 (define (yoall args)
@@ -137,13 +155,33 @@
           (history-help))))
 (set-subcommand! "history" history)
 
+(define (get-prompt prompt)
+  (display prompt)
+  (flush)
+  (let1 input (read-line)
+    (if (zero? (string-length input))
+      (get-prompt prompt)
+      input)))
+
+(define get-pass get-prompt)
+
+(define (length>? x k)
+  (cond
+    ((null? x) #f)
+    ((zero? k) x)
+    (else (length>? (cdr x) (- k 1)))))
+
+(define-macro (let-with-list lst binds . body)
+  `(let ,(map (lambda (bind n)
+                `(,(car bind) (aif (length>? ,lst ,n) 
+                                   (car it)
+                                   ,(cadr bind))))
+              binds (liota +inf.0))
+     ,@body))
+
 (define (init args)
-  (let ((endpoint (if (null? args) 
-                    (get-prompt "input endpoint>")
-                    (car args)))
-        (api-ver  (if (null? (cdr args))
-                     (get-prompt "input api_ver>")
-                     (cadr args))))
+  (let-with-list args ((endpoint (get-prompt "input endpoint> "))
+                       (api-ver (get-prompt "input api_ver> ")))
     (if (string->number api-ver)
       (initialize-yaoy-config endpoint api-ver)
       (begin
@@ -152,39 +190,24 @@
 (set-subcommand! "init" init)
 
 (define (register args)
-  (let ((username (if (null? args)
-                    (get-prompt "input username>")
-                    (car args)))
-        (password (if (null? (cdr args))
-                    (get-pass "input password>")
-                    (cadr args))))
-    (create-user username password)))
+  (let-with-list args ((username (get-prompt "input username> "))
+                       (password (get-pass "input password> ")))
+    (aif (create-user username password)
+      (set-user-info! "username" username)
+      (print "registration failed."))))
 (set-subcommand! "register" register)
 
-(define-macro (caseoc key . clauses)
-  (cons 'cond
-    (map (lambda (clause)
-           (if (equal? 'else (car clause))
-             clause
-             (cons `(or ,@(map (lambda (x) `(equal? ,x ,key))
-                                (car clause)))
-                   (cdr clause))))
-         clauses)))
+(define (token args)
+  (let-with-list args ((password (get-pass "input password> ")))
+    (let1 response (openyo-new-api-token 
+                     (get-user-info "endpoint")
+                     (get-user-info "api_ver")
+                     (get-user-info "username")
+                     password)
+      (print response))))
+(set-subcommand! "token" token)
 
 (define (main args)
-  (let1 args (cdr args)
-    (if (null? args) 
-      (help)
-      (caseoc (car args)
-        (("yo") (yo (cdr args)))
-        (("yoall") (yoall (cdr args)))
-        (("history") (history (cdr args)))
-        (("init") (init (cdr args)))
-        (("register") (register (cdr args)))
-        (("help") (help))
-        (else (print (class-of (car args))))))))
-
-(define (alt-main args)
   (let1 args (cdr args)
     (if (null? args)
       (help)

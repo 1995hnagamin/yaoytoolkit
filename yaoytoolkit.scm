@@ -1,7 +1,7 @@
 (define (status-code http-response) (car http-response))
 
 (define (success-status? response)
-  (equal? (status-code response) "200"))
+  (string=? (status-code response) "200"))
 
 (define (http-response-jsonbody response)
   (parse-json-string (list-ref response 2)))
@@ -15,6 +15,9 @@
                            ""
                            :secure #t)))
 
+(define (datestring->date str)
+  (string->date str "~Y-~m-~d ~H:~M:~S ~z"))
+
 (define (openyo-history endpoint api-ver api-token :key (count #f))
   (let1 response
         (get-openyo endpoint
@@ -24,7 +27,7 @@
                             (if count (list count) '())))
     (if (success-status? response)
       (map (lambda (elem)
-             (cons (cdar elem) (cdadr elem)))
+             (cons (cdar elem) (datestring->date (cdadr elem))))
         (vector->list
           (cdr (assoc "result" (http-response-jsonbody response)))))
       '())))
@@ -49,12 +52,13 @@
                 (api_token ,api-token))))
 
 (define (openyo-list-friends endpoint api-ver api-token)
-  (get-oepnyo endpoint
+  (get-openyo endpoint
               "/list_friends/"
               `((api_ver ,api-ver)
                 (api_token ,api-token))))
 
-(define (openyo-add-imkayac endpoint api-ver username password kayac-id 
+(define (openyo-add-imkayac endpoint api-ver
+                            username password kayac-id 
                             :key (kayac-pass #f) 
                                  (kayac-sec #f))
   (post-openyo endpoint
@@ -67,23 +71,27 @@
                        (if kayac-id (list kayac-id) '()))))
 
 (define (openyo-new-api-token endpoint api-ver username password)
-  (get-openyo endpoint
-              "/config/new_api_eoken/"
-              `((api_ver ,api-ver)
-                (username ,username)
-                (password ,password))))
+  (cdr
+    (assoc "result"
+      (http-response-jsonbody
+        (post-openyo endpoint
+                     "/config/new_api_token/"
+                     `((api_ver ,api-ver)
+                       (username ,username)
+                       (password ,password)))))))
 
-(define (openyo-create-user endpoint api_ver username password)
+(define (openyo-create-user endpoint api-ver username password)
   (let1 response (post-openyo endpoint
                               "/config/create_user/"
                               `((api_ver ,api-ver)
                                 (username ,username)
                                 (password ,password)))
-     (if (success-status? response)
-       (let* ((body (http-response-jsonbody response))
-              (code (cdr (assoc "code" body)))
-              (result (cdr (assoc "result" body))))
-         (if (equal? code "200")
-           result
-           (list code result)))
-       (list response))))
+    (let* ((body (http-response-jsonbody response))
+           (code (cdr (assoc "code" body)))
+           (result (cdr (assoc "result" body))))
+      (cond
+        ((not (success-status? response))
+         (values response "http-post"))
+        ((not (equal? code 200))
+         (values body "openyo"))
+        (else (values result #f))))))
