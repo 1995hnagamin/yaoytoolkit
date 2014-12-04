@@ -71,11 +71,14 @@
                        (if kayac-id (list kayac-id) '()))))
 
 (define (openyo-new-api-token endpoint api-ver username password)
-  (post-openyo endpoint
-              "/config/new_api_token/"
-              `((api_ver ,api-ver)
-                (username ,username)
-                (password ,password))))
+  (cdr
+    (assoc "result"
+      (http-response-jsonbody
+        (post-openyo endpoint
+                     "/config/new_api_token/"
+                     `((api_ver ,api-ver)
+                       (username ,username)
+                       (password ,password)))))))
 
 (define (openyo-create-user endpoint api-ver username password)
   (let1 response (post-openyo endpoint

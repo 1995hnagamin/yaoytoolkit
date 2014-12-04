@@ -193,11 +193,19 @@
   (let-with-list args ((username (get-prompt "input username> "))
                        (password (get-pass "input password> ")))
     (aif (create-user username password)
-      (begin
-        (set-user-info! "username" username)
-        (set-user-info! "password" password))
+      (set-user-info! "username" username)
       (print "registration failed."))))
 (set-subcommand! "register" register)
+
+(define (token args)
+  (let-with-list args ((password (get-pass "input password> ")))
+    (let1 response (openyo-new-api-token 
+                     (get-user-info "endpoint")
+                     (get-user-info "api_ver")
+                     (get-user-info "username")
+                     password)
+      (print response))))
+(set-subcommand! "token" token)
 
 (define (main args)
   (let1 args (cdr args)
