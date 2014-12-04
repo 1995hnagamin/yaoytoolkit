@@ -21,7 +21,8 @@
 (define (set-subcommand! command procedure)
   (set! *subcommands* (assoc-set! *subcommands* command procedure)))
 
-(define *yaoy-config* (expand-path "~/.yaoy/config"))
+(define *yaoy-directory* (expand-path "~/.yaoy/"))
+(define *yaoy-config* (string-append *yaoy-directory* "config"))
 
 (define (get-yaoy-settings)
   (call-with-input-file *yaoy-config*
@@ -37,18 +38,24 @@
       (cdr result) #f)))
 
 (define (set-user-info! key value)
+  (create-directory* *yaoy-directory*)
   (let1 settings (get-yaoy-settings)
     (call-with-output-file *yaoy-config*
       (lambda (oport)
-        (construct-json (assoc-set! settings key value) oport)))))
+        (construct-json
+          (assoc-set! (if settings settings '()) key value) oport))
+      :if-does-not-exist :create)))
 
 
 (define (send-yo username)
-  (apply openyo-sendyo
-         (append
-           (map get-user-info
-                '("endpoint" "api_ver" "api_token"))
-           `(,username))))
+  (let1 response
+    (http-response-jsonbody
+      (apply openyo-sendyo
+            (append
+              (map get-user-info
+                   '("endpoint" "api_ver" "api_token"))
+              `(,username))))
+    (cdr (assoc "result" response))))
 
 (define (send-yo-all)
   (apply openyo-yoall
@@ -70,27 +77,36 @@
                    :count (car n)))
      (for-each
        (lambda (e)
-         (print (format "~A\t~A" (date->datestring (cdr e)) (car e))))
+         (print (format #t "~A\t~A~%"
+                        (date->datestring (cdr e)) (car e))))
        result)))
 
 (define (create-user username password)
-  (let1 result (openyo-create-user (get-user-info "endpoint")
-                                   (get-user-info "api_ver")
-                                   username
-                                   password)
+  (receive (result fail?)
+           (openyo-create-user (get-user-info "endpoint")
+                               (get-user-info "api_ver")
+                               username
+                               password)
     (cond
-      ((string? result) 
+      ((not fail?)
        (set-user-info! "api_token" result)
-       (print (format "User created: ~A" username)))
-      ((null? (cdr result))
-       (print "Couldn't post request to ~A." 
+       (print (format #t "User created: ~A~%" username)) #t)
+      ((string=? fail? "http-post")
+       (print "Could not post request to ~A.~%" 
               (get-user-info "endpoint"))
-       (print "error log:")
-       (print (car result)))
+       (format #t "error log:~A~%" (car result)) #f)
       (else
-        (print "Couldn't create user ~A: ~A"
-               username
-               (cadr result))))))
+        (format #t "Could not create user \"~A\": ~A~%"
+                username
+                (cadr result)) #f))))
+
+(define (get-friends)
+  (openyo-list-friends (get-user-info "endpoint")
+                       (get-user-info "api_ver")
+                       (get-user-info "api_token")))
+(set-subcommand! "friends" 
+                 (lambda (args)
+                   (for-each print (get-friends))))
 
 (define (initialize-yaoy-config endpoint api-ver)
   (set-user-info! "endpoint" endpoint)
@@ -118,13 +134,13 @@
 
 (define (init-help)
   (print-all "usage: yaoy init [endpoint] [api_ver]"
-             (format "  Initialize yaoy confiruration file (~A)" *yaoy-config*)))
+             (format "  Initialize yaoy confiruration file (~A)~%" *yaoy-config*)))
 
 
 (define (yo args)
   (if (null? args)
     (yo-help)
-    (send-yo (car args))))
+    (print (send-yo (car args)))))
 (set-subcommand! "yo" yo)
 
 (define (yoall args)
@@ -135,7 +151,7 @@
   (cond
     ((null? args) (show-history))
     ((string->number (car args)) (show-history (car args)))
-    (else (print (format "error: ~A is not a number" (car args)))
+    (else (print (format "error: ~A is not a number~%" (car args)))
           (history-help))))
 (set-subcommand! "history" history)
 
@@ -176,7 +192,11 @@
 (define (register args)
   (let-with-list args ((username (get-prompt "input username> "))
                        (password (get-pass "input password> ")))
-    (create-user username password)))
+    (aif (create-user username password)
+      (begin
+        (set-user-info! "username" username)
+        (set-user-info! "password" password))
+      (print "registration failed."))))
 (set-subcommand! "register" register)
 
 (define (main args)
